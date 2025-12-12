@@ -1,5 +1,5 @@
 //
-//  SecurityGroupService.swift
+//  EC2Service.swift
 //  Security Groupie
 //
 
@@ -66,8 +66,8 @@ struct AWSRegionInfo: Identifiable, Hashable {
     }
 }
 
-actor SecurityGroupService {
-    static let shared = SecurityGroupService()
+actor EC2Service {
+    static let shared = EC2Service()
 
     private init() {}
 

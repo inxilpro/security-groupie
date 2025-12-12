@@ -64,8 +64,8 @@ class AWSConnectionState {
 
         do {
             // Fetch regions and security groups in parallel
-            async let regionsTask = SecurityGroupService.shared.fetchRegions(credentials: credentials)
-            async let groupsTask = SecurityGroupService.shared.fetchSecurityGroups(credentials: credentials)
+            async let regionsTask = EC2Service.shared.fetchRegions(credentials: credentials)
+            async let groupsTask = EC2Service.shared.fetchSecurityGroups(credentials: credentials)
 
             let (fetchedRegions, fetchedGroups) = try await (regionsTask, groupsTask)
             regions = fetchedRegions
@@ -97,7 +97,7 @@ class AWSConnectionState {
         }
 
         do {
-            let groups = try await SecurityGroupService.shared.fetchSecurityGroups(credentials: credentials)
+            let groups = try await EC2Service.shared.fetchSecurityGroups(credentials: credentials)
             securityGroups = groups
             error = nil
         } catch {
