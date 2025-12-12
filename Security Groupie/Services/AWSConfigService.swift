@@ -5,6 +5,12 @@
 
 import Foundation
 
+struct AWSProfileCredentials {
+    let accessKeyId: String
+    let secretAccessKey: String
+    let region: String?
+}
+
 @Observable
 final class AWSConfigService {
     static let shared = AWSConfigService()
@@ -14,10 +20,10 @@ final class AWSConfigService {
 
     private let credentialsPath: URL
     private let configPath: URL
+    private var profileCredentials: [String: AWSProfileCredentials] = [:]
+    private var profileRegions: [String: String] = [:]
 
     private init() {
-        // Use NSHomeDirectory() alternative that works in sandbox
-        // The ~ path resolves to the real home directory with the temporary exception entitlement
         let homeDir = URL(fileURLWithPath: NSHomeDirectory())
 
         // In sandboxed apps, NSHomeDirectory() returns the container path
@@ -36,15 +42,23 @@ final class AWSConfigService {
 
     func reload() {
         var foundProfiles = Set<String>()
+        profileCredentials = [:]
+        profileRegions = [:]
 
-        // Check credentials file
-        if let credentialsProfiles = parseProfilesFromFile(credentialsPath) {
-            foundProfiles.formUnion(credentialsProfiles)
+        // Parse credentials file for access keys
+        if let parsed = parseCredentialsFile(credentialsPath) {
+            for (profile, creds) in parsed {
+                foundProfiles.insert(profile)
+                profileCredentials[profile] = creds
+            }
         }
 
-        // Check config file (profiles are prefixed with "profile " except default)
-        if let configProfiles = parseProfilesFromFile(configPath, stripProfilePrefix: true) {
-            foundProfiles.formUnion(configProfiles)
+        // Parse config file for regions and additional profiles
+        if let parsed = parseConfigFile(configPath) {
+            for (profile, region) in parsed {
+                foundProfiles.insert(profile)
+                profileRegions[profile] = region
+            }
         }
 
         hasConfigFile = !foundProfiles.isEmpty
@@ -57,32 +71,122 @@ final class AWSConfigService {
         }
     }
 
-    private func parseProfilesFromFile(_ url: URL, stripProfilePrefix: Bool = false) -> Set<String>? {
+    func credentials(for profile: String) -> AWSProfileCredentials? {
+        guard let creds = profileCredentials[profile] else {
+            return nil
+        }
+        // Merge region from config file if available
+        let region = profileRegions[profile] ?? creds.region
+        return AWSProfileCredentials(
+            accessKeyId: creds.accessKeyId,
+            secretAccessKey: creds.secretAccessKey,
+            region: region
+        )
+    }
+
+    func region(for profile: String) -> String? {
+        profileRegions[profile]
+    }
+
+    private func parseCredentialsFile(_ url: URL) -> [String: AWSProfileCredentials]? {
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
             return nil
         }
 
-        var profiles = Set<String>()
+        var result: [String: AWSProfileCredentials] = [:]
+        var currentProfile: String?
+        var currentAccessKey: String?
+        var currentSecretKey: String?
+        var currentRegion: String?
+
         let lines = contents.components(separatedBy: .newlines)
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            // Match [profile_name] or [profile profile_name]
             if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
-                var profileName = String(trimmed.dropFirst().dropLast())
-
-                if stripProfilePrefix && profileName.hasPrefix("profile ") {
-                    profileName = String(profileName.dropFirst("profile ".count))
+                // Save previous profile
+                if let profile = currentProfile,
+                   let accessKey = currentAccessKey,
+                   let secretKey = currentSecretKey {
+                    result[profile] = AWSProfileCredentials(
+                        accessKeyId: accessKey,
+                        secretAccessKey: secretKey,
+                        region: currentRegion
+                    )
                 }
 
-                profileName = profileName.trimmingCharacters(in: .whitespaces)
-                if !profileName.isEmpty {
-                    profiles.insert(profileName)
+                // Start new profile
+                currentProfile = String(trimmed.dropFirst().dropLast())
+                currentAccessKey = nil
+                currentSecretKey = nil
+                currentRegion = nil
+            } else if let (key, value) = parseKeyValue(trimmed) {
+                switch key.lowercased() {
+                case "aws_access_key_id":
+                    currentAccessKey = value
+                case "aws_secret_access_key":
+                    currentSecretKey = value
+                case "region":
+                    currentRegion = value
+                default:
+                    break
                 }
             }
         }
 
-        return profiles.isEmpty ? nil : profiles
+        // Save last profile
+        if let profile = currentProfile,
+           let accessKey = currentAccessKey,
+           let secretKey = currentSecretKey {
+            result[profile] = AWSProfileCredentials(
+                accessKeyId: accessKey,
+                secretAccessKey: secretKey,
+                region: currentRegion
+            )
+        }
+
+        return result.isEmpty ? nil : result
+    }
+
+    private func parseConfigFile(_ url: URL) -> [String: String]? {
+        guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
+            return nil
+        }
+
+        var result: [String: String] = [:]
+        var currentProfile: String?
+
+        let lines = contents.components(separatedBy: .newlines)
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                var profileName = String(trimmed.dropFirst().dropLast())
+                if profileName.hasPrefix("profile ") {
+                    profileName = String(profileName.dropFirst("profile ".count))
+                }
+                currentProfile = profileName.trimmingCharacters(in: .whitespaces)
+            } else if let (key, value) = parseKeyValue(trimmed),
+                      key.lowercased() == "region",
+                      let profile = currentProfile {
+                result[profile] = value
+            }
+        }
+
+        return result.isEmpty ? nil : result
+    }
+
+    private func parseKeyValue(_ line: String) -> (String, String)? {
+        guard let equalsIndex = line.firstIndex(of: "=") else {
+            return nil
+        }
+        let key = String(line[..<equalsIndex]).trimmingCharacters(in: .whitespaces)
+        let value = String(line[line.index(after: equalsIndex)...]).trimmingCharacters(in: .whitespaces)
+        guard !key.isEmpty && !value.isEmpty else {
+            return nil
+        }
+        return (key, value)
     }
 }

@@ -4,11 +4,120 @@
 //
 
 import Foundation
+import AWSEC2
+import SmithyIdentity
+
+struct SecurityGroupInfo: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let description: String
+    let vpcId: String?
+
+    var displayName: String {
+        if name.isEmpty {
+            return id
+        }
+        return "\(name) (\(id))"
+    }
+}
+
+struct AWSRegionInfo: Identifiable, Hashable {
+    let id: String
+    let name: String
+
+    var displayName: String {
+        "\(name) (\(id))"
+    }
+
+    // Common region display names
+    static func displayName(for regionId: String) -> String {
+        let names: [String: String] = [
+            "us-east-1": "US East (N. Virginia)",
+            "us-east-2": "US East (Ohio)",
+            "us-west-1": "US West (N. California)",
+            "us-west-2": "US West (Oregon)",
+            "af-south-1": "Africa (Cape Town)",
+            "ap-east-1": "Asia Pacific (Hong Kong)",
+            "ap-south-1": "Asia Pacific (Mumbai)",
+            "ap-south-2": "Asia Pacific (Hyderabad)",
+            "ap-southeast-1": "Asia Pacific (Singapore)",
+            "ap-southeast-2": "Asia Pacific (Sydney)",
+            "ap-southeast-3": "Asia Pacific (Jakarta)",
+            "ap-southeast-4": "Asia Pacific (Melbourne)",
+            "ap-northeast-1": "Asia Pacific (Tokyo)",
+            "ap-northeast-2": "Asia Pacific (Seoul)",
+            "ap-northeast-3": "Asia Pacific (Osaka)",
+            "ca-central-1": "Canada (Central)",
+            "ca-west-1": "Canada West (Calgary)",
+            "eu-central-1": "Europe (Frankfurt)",
+            "eu-central-2": "Europe (Zurich)",
+            "eu-west-1": "Europe (Ireland)",
+            "eu-west-2": "Europe (London)",
+            "eu-west-3": "Europe (Paris)",
+            "eu-south-1": "Europe (Milan)",
+            "eu-south-2": "Europe (Spain)",
+            "eu-north-1": "Europe (Stockholm)",
+            "il-central-1": "Israel (Tel Aviv)",
+            "me-south-1": "Middle East (Bahrain)",
+            "me-central-1": "Middle East (UAE)",
+            "sa-east-1": "South America (São Paulo)",
+        ]
+        return names[regionId] ?? regionId
+    }
+}
 
 actor SecurityGroupService {
     static let shared = SecurityGroupService()
 
     private init() {}
+
+    func fetchRegions(credentials: AWSCredentials) async throws -> [AWSRegionInfo] {
+        // Use us-east-1 as the bootstrap region to fetch the list of all regions
+        let bootstrapCredentials = AWSCredentials(
+            accessKeyId: credentials.accessKeyId,
+            secretAccessKey: credentials.secretAccessKey,
+            region: "us-east-1"
+        )
+        let client = try await createEC2Client(credentials: bootstrapCredentials)
+
+        let input = DescribeRegionsInput(
+            allRegions: false // Only return regions enabled for this account
+        )
+        let output = try await client.describeRegions(input: input)
+
+        guard let regions = output.regions else {
+            return []
+        }
+
+        return regions.compactMap { region -> AWSRegionInfo? in
+            guard let regionName = region.regionName else { return nil }
+            return AWSRegionInfo(
+                id: regionName,
+                name: AWSRegionInfo.displayName(for: regionName)
+            )
+        }.sorted { $0.id < $1.id }
+    }
+
+    func fetchSecurityGroups(credentials: AWSCredentials) async throws -> [SecurityGroupInfo] {
+        let client = try await createEC2Client(credentials: credentials)
+
+        let input = DescribeSecurityGroupsInput()
+        let output = try await client.describeSecurityGroups(input: input)
+
+        guard let securityGroups = output.securityGroups else {
+            return []
+        }
+
+        return securityGroups.compactMap { sg -> SecurityGroupInfo? in
+            guard let groupId = sg.groupId else { return nil }
+            return SecurityGroupInfo(
+                id: groupId,
+                name: sg.groupName ?? "",
+                description: sg.description ?? "",
+                vpcId: sg.vpcId
+            )
+        }.sorted { $0.name.lowercased() < $1.name.lowercased() }
+    }
 
     func updateSecurityGroupRule(
         securityGroupId: String,
@@ -19,85 +128,136 @@ actor SecurityGroupService {
         credentials: AWSCredentials
     ) async throws {
         let cidrIp = "\(ipAddress)/32"
+        let client = try await createEC2Client(credentials: credentials)
 
         // First, try to find an existing rule with the same description
         let existingRuleId = try await findExistingRule(
+            client: client,
             securityGroupId: securityGroupId,
-            region: region,
-            description: description,
-            credentials: credentials
+            description: description
         )
 
         if let ruleId = existingRuleId {
             // Update existing rule
             try await modifySecurityGroupRule(
+                client: client,
                 securityGroupId: securityGroupId,
-                region: region,
                 ruleId: ruleId,
                 cidrIp: cidrIp,
                 port: port,
-                description: description,
-                credentials: credentials
+                description: description
             )
         } else {
             // Create new rule
             try await createSecurityGroupRule(
+                client: client,
                 securityGroupId: securityGroupId,
-                region: region,
                 cidrIp: cidrIp,
                 port: port,
-                description: description,
-                credentials: credentials
+                description: description
             )
         }
     }
 
+    private func createEC2Client(credentials: AWSCredentials) async throws -> EC2Client {
+        let identity = AWSCredentialIdentity(
+            accessKey: credentials.accessKeyId,
+            secret: credentials.secretAccessKey
+        )
+        let resolver = try StaticAWSCredentialIdentityResolver(identity)
+        let config = try await EC2Client.EC2ClientConfiguration(
+            awsCredentialIdentityResolver: resolver,
+            region: credentials.region
+        )
+
+        return EC2Client(config: config)
+    }
+
     private func findExistingRule(
+        client: EC2Client,
         securityGroupId: String,
-        region: String,
-        description: String,
-        credentials: AWSCredentials
+        description: String
     ) async throws -> String? {
-        // For now, this is a placeholder - will be implemented with AWS SDK
-        // The AWS SDK will query security group rules and find one matching the description
+        let input = DescribeSecurityGroupRulesInput(
+            filters: [
+                EC2ClientTypes.Filter(name: "group-id", values: [securityGroupId])
+            ]
+        )
+
+        let output = try await client.describeSecurityGroupRules(input: input)
+
+        guard let rules = output.securityGroupRules else {
+            return nil
+        }
+
+        // Find a rule matching our description
+        for rule in rules {
+            if rule.description == description {
+                return rule.securityGroupRuleId
+            }
+        }
+
         return nil
     }
 
     private func modifySecurityGroupRule(
+        client: EC2Client,
         securityGroupId: String,
-        region: String,
         ruleId: String,
         cidrIp: String,
         port: Int,
-        description: String,
-        credentials: AWSCredentials
+        description: String
     ) async throws {
-        // Placeholder for AWS SDK implementation
-        // Will call ModifySecurityGroupRules API
-        print("Would modify rule \(ruleId) to \(cidrIp)")
+        let ruleUpdate = EC2ClientTypes.SecurityGroupRuleUpdate(
+            securityGroupRule: EC2ClientTypes.SecurityGroupRuleRequest(
+                cidrIpv4: cidrIp,
+                description: description,
+                fromPort: port,
+                ipProtocol: "tcp",
+                toPort: port
+            ),
+            securityGroupRuleId: ruleId
+        )
+
+        let input = ModifySecurityGroupRulesInput(
+            groupId: securityGroupId,
+            securityGroupRules: [ruleUpdate]
+        )
+
+        _ = try await client.modifySecurityGroupRules(input: input)
     }
 
     private func createSecurityGroupRule(
+        client: EC2Client,
         securityGroupId: String,
-        region: String,
         cidrIp: String,
         port: Int,
-        description: String,
-        credentials: AWSCredentials
+        description: String
     ) async throws {
-        // Placeholder for AWS SDK implementation
-        // Will call AuthorizeSecurityGroupIngress API
-        print("Would create new rule for \(cidrIp)")
+        let ipPermission = EC2ClientTypes.IpPermission(
+            fromPort: port,
+            ipProtocol: "tcp",
+            ipRanges: [
+                EC2ClientTypes.IpRange(
+                    cidrIp: cidrIp,
+                    description: description
+                )
+            ],
+            toPort: port
+        )
+
+        let input = AuthorizeSecurityGroupIngressInput(
+            groupId: securityGroupId,
+            ipPermissions: [ipPermission]
+        )
+
+        _ = try await client.authorizeSecurityGroupIngress(input: input)
     }
 }
 
 struct AWSCredentials {
-    enum Source {
-        case profile(String)
-        case accessKey(accessKeyId: String, secretAccessKey: String)
-    }
-
-    let source: Source
+    let accessKeyId: String
+    let secretAccessKey: String
     let region: String
 }
 

@@ -89,10 +89,24 @@ final class AppState {
 
             status = .updating
 
+            let accessKeyId: String
+            let secretAccessKey: String
+
+            if settings.authMethod == .profile {
+                guard let profileCreds = AWSConfigService.shared.credentials(for: settings.awsProfile) else {
+                    status = .error("Profile credentials not found")
+                    return
+                }
+                accessKeyId = profileCreds.accessKeyId
+                secretAccessKey = profileCreds.secretAccessKey
+            } else {
+                accessKeyId = settings.awsAccessKeyId
+                secretAccessKey = settings.awsSecretAccessKey
+            }
+
             let credentials = AWSCredentials(
-                source: settings.authMethod == .profile
-                    ? .profile(settings.awsProfile)
-                    : .accessKey(accessKeyId: settings.awsAccessKeyId, secretAccessKey: settings.awsSecretAccessKey),
+                accessKeyId: accessKeyId,
+                secretAccessKey: secretAccessKey,
                 region: settings.awsRegion
             )
 

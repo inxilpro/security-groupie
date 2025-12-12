@@ -77,7 +77,7 @@ final class AppSettings {
         !securityGroupId.isEmpty && hasValidAuth
     }
 
-    private var hasValidAuth: Bool {
+    var hasValidAuth: Bool {
         switch authMethod {
         case .profile:
             return !awsProfile.isEmpty
