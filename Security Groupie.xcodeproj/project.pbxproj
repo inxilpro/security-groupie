@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		6BC3FEE82EEB763E0070E6E0 /* AWSEC2 in Frameworks */ = {isa = PBXBuildFile; productRef = 6BC3FF012EEB80000070E6E0 /* AWSEC2 */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		6BC3FE262EEB692F0070E6E0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6BC3FEE82EEB763E0070E6E0 /* AWSEC2 in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -196,11 +201,11 @@
 			);
 			mainGroup = 6BC3FE0F2EEB692E0070E6E0;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
-			productRefGroup = 6BC3FE192EEB692E0070E6E0 /* Products */;
 			packageReferences = (
 				6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */,
 			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 6BC3FE192EEB692E0070E6E0 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -271,25 +276,6 @@
 			targetProxy = 6BC3FE302EEB692F0070E6E0 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/awslabs/aws-sdk-swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		6BC3FF012EEB80000070E6E0 /* AWSEC2 */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */;
-			productName = AWSEC2;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		6BC3FE372EEB692F0070E6E0 /* Debug */ = {
@@ -596,6 +582,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/awslabs/aws-sdk-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6BC3FF012EEB80000070E6E0 /* AWSEC2 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */;
+			productName = AWSEC2;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 6BC3FE102EEB692E0070E6E0 /* Project object */;
 }
