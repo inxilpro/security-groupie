@@ -26,7 +26,7 @@ struct MenuBarView: View {
 
         Button("Refresh Now") {
             Task {
-                await appState.checkAndUpdateIP()
+                await appState.checkAndUpdateIP(force: true)
             }
         }
         .keyboardShortcut("r", modifiers: .command)

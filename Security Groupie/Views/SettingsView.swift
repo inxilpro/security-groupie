@@ -269,6 +269,11 @@ struct SettingsView: View {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
 
+            // Set the app icon explicitly for the Dock
+            if let appIcon = NSImage(named: NSImage.applicationIconName) {
+                NSApp.applicationIconImage = appIcon
+            }
+
             // If no config file exists, force access key method
             if !awsConfig.hasConfigFile {
                 settings.authMethod = .accessKey
@@ -276,6 +281,10 @@ struct SettingsView: View {
             // Fetch regions and security groups on appear if we have credentials
             if settings.hasValidAuth {
                 triggerFullFetch()
+            }
+            // Refresh IP immediately when settings opens
+            Task {
+                await AppState.shared.checkAndUpdateIP(force: true)
             }
         }
         .onDisappear {

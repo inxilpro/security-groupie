@@ -126,7 +126,7 @@ actor EC2Service {
         port: Int,
         description: String,
         credentials: AWSCredentials
-    ) async throws {
+    ) async throws -> UpdateResult {
         let cidrIp = "\(ipAddress)/32"
         let client = try await createEC2Client(credentials: credentials)
 
@@ -147,15 +147,26 @@ actor EC2Service {
                 port: port,
                 description: description
             )
+            return .updated
         } else {
             // Create new rule
-            try await createSecurityGroupRule(
-                client: client,
-                securityGroupId: securityGroupId,
-                cidrIp: cidrIp,
-                port: port,
-                description: description
-            )
+            do {
+                try await createSecurityGroupRule(
+                    client: client,
+                    securityGroupId: securityGroupId,
+                    cidrIp: cidrIp,
+                    port: port,
+                    description: description
+                )
+                return .created
+            } catch let error as Error {
+                // Check if this is a duplicate permission error
+                let errorString = String(describing: error)
+                if errorString.contains("InvalidPermission.Duplicate") {
+                    return .alreadyExists
+                }
+                throw error
+            }
         }
     }
 
@@ -266,6 +277,7 @@ enum SecurityGroupError: LocalizedError {
     case ruleNotFound
     case apiError(String)
     case invalidCredentials
+    case duplicateRule
 
     var errorDescription: String? {
         switch self {
@@ -277,6 +289,14 @@ enum SecurityGroupError: LocalizedError {
             return "AWS API error: \(message)"
         case .invalidCredentials:
             return "Invalid AWS credentials"
+        case .duplicateRule:
+            return "A rule for this IP already exists"
         }
     }
+}
+
+enum UpdateResult {
+    case created
+    case updated
+    case alreadyExists
 }
