@@ -131,18 +131,23 @@ actor EC2Service {
         let client = try await createEC2Client(credentials: credentials)
 
         // First, try to find an existing rule with the same description
-        let existingRuleId = try await findExistingRule(
+        let existingRule = try await findExistingRule(
             client: client,
             securityGroupId: securityGroupId,
             description: description
         )
 
-        if let ruleId = existingRuleId {
-            // Update existing rule
+        if let rule = existingRule {
+            // Check if the IP already matches
+            if rule.cidrIp == cidrIp {
+                return .noChangeNeeded
+            }
+
+            // Update existing rule with new IP
             try await modifySecurityGroupRule(
                 client: client,
                 securityGroupId: securityGroupId,
-                ruleId: ruleId,
+                ruleId: rule.ruleId,
                 cidrIp: cidrIp,
                 port: port,
                 description: description
@@ -159,11 +164,11 @@ actor EC2Service {
                     description: description
                 )
                 return .created
-            } catch let error as Error {
+            } catch {
                 // Check if this is a duplicate permission error
                 let errorString = String(describing: error)
                 if errorString.contains("InvalidPermission.Duplicate") {
-                    return .alreadyExists
+                    return .alreadyExistsElsewhere
                 }
                 throw error
             }
@@ -184,11 +189,16 @@ actor EC2Service {
         return EC2Client(config: config)
     }
 
+    private struct ExistingRuleInfo {
+        let ruleId: String
+        let cidrIp: String?
+    }
+
     private func findExistingRule(
         client: EC2Client,
         securityGroupId: String,
         description: String
-    ) async throws -> String? {
+    ) async throws -> ExistingRuleInfo? {
         let input = DescribeSecurityGroupRulesInput(
             filters: [
                 EC2ClientTypes.Filter(name: "group-id", values: [securityGroupId])
@@ -203,8 +213,8 @@ actor EC2Service {
 
         // Find a rule matching our description
         for rule in rules {
-            if rule.description == description {
-                return rule.securityGroupRuleId
+            if rule.description == description, let ruleId = rule.securityGroupRuleId {
+                return ExistingRuleInfo(ruleId: ruleId, cidrIp: rule.cidrIpv4)
             }
         }
 
@@ -296,7 +306,8 @@ enum SecurityGroupError: LocalizedError {
 }
 
 enum UpdateResult {
-    case created
-    case updated
-    case alreadyExists
+    case created                    // New rule was created for this device
+    case updated                    // Existing rule was updated with new IP
+    case noChangeNeeded             // Rule exists and already has correct IP
+    case alreadyExistsElsewhere     // IP is allowed by a different rule (different description)
 }

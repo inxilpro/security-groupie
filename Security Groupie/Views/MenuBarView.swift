@@ -9,8 +9,10 @@ struct MenuBarView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        Text(appState.statusText)
-            .disabled(true)
+        if let status = appState.statusText {
+            Text(status)
+                .disabled(true)
+        }
 
         if let ip = appState.currentIP {
             Text(ip)
@@ -26,7 +28,7 @@ struct MenuBarView: View {
 
         Button("Refresh Now") {
             Task {
-                await appState.checkAndUpdateIP(force: true)
+                await appState.handleManualRefresh()
             }
         }
         .keyboardShortcut("r", modifiers: .command)

@@ -43,22 +43,24 @@ final class AppState {
     var currentIP: String?
     var lastUpdated: Date?
 
+    private var isCheckInProgress = false
+
     private init() {
         // Request notification permissions
         Task {
             await requestNotificationPermissions()
         }
 
-        // Start network monitoring - use cached IP check for network changes
+        // Start network monitoring
         NetworkMonitor.shared.startMonitoring {
             Task {
-                await AppState.shared.checkAndUpdateIP(force: false)
+                await AppState.shared.handleNetworkChange()
             }
         }
 
-        // Check immediately on launch - always force update
+        // Check immediately on launch
         Task {
-            await checkAndUpdateIP(force: true)
+            await handleManualRefresh()
         }
     }
 
@@ -83,24 +85,34 @@ final class AppState {
         }
     }
 
-    var statusText: String {
+    var statusText: String? {
         switch status {
         case .idle:
-            return "Idle"
+            return nil
         case .checking:
             return "Checking IP..."
         case .updating:
             return "Updating security group..."
         case .success:
-            return "Up to date"
+            return nil
         case .error(let message):
             return "Error: \(message)"
         }
     }
 
-    func checkAndUpdateIP(force: Bool = false) async {
+    /// Called when a network change is detected. Only checks AWS if IP changed.
+    /// Only notifies on actual changes (created/updated), not when already configured.
+    func handleNetworkChange() async {
+        guard !isCheckInProgress else {
+            print("[Security Groupie] Check already in progress, skipping...")
+            return
+        }
+
+        isCheckInProgress = true
+        defer { isCheckInProgress = false }
+
         status = .checking
-        print("[Security Groupie] Starting IP check (force: \(force))...")
+        print("[Security Groupie] Network change detected, checking IP...")
 
         do {
             let ip = try await IPService.shared.fetchCurrentIP()
@@ -108,69 +120,29 @@ final class AppState {
             print("[Security Groupie] Current IP: \(ip)")
 
             let settings = AppSettings.shared
-            print("[Security Groupie] isConfigured: \(settings.isConfigured), securityGroupId: '\(settings.securityGroupId)', authMethod: \(settings.authMethod), profile: '\(settings.awsProfile)'")
 
             guard settings.isConfigured else {
-                print("[Security Groupie] Not configured - missing security group or credentials")
+                print("[Security Groupie] Not configured, skipping")
                 status = .error("Not configured")
                 return
             }
 
-            // Check if IP changed (skip this check if force is true)
-            let isNewRule = settings.lastKnownIP == nil
-            print("[Security Groupie] lastKnownIP: \(settings.lastKnownIP ?? "nil"), isNewRule: \(isNewRule), force: \(force)")
-
-            if !force && ip == settings.lastKnownIP {
-                print("[Security Groupie] IP unchanged, skipping update")
+            // For network changes, skip if IP hasn't changed
+            if ip == settings.lastKnownIP {
+                print("[Security Groupie] IP unchanged, skipping AWS check")
                 status = .success
                 return
             }
 
-            status = .updating
-            print("[Security Groupie] Updating security group...")
-
-            // Build credentials
-            let accessKeyId: String
-            let secretAccessKey: String
-
-            if settings.authMethod == .profile {
-                guard let profileCreds = AWSConfigService.shared.credentials(for: settings.awsProfile) else {
-                    print("[Security Groupie] Profile credentials not found for profile: \(settings.awsProfile)")
-                    status = .error("Profile credentials not found")
-                    return
-                }
-                accessKeyId = profileCreds.accessKeyId
-                secretAccessKey = profileCreds.secretAccessKey
-                print("[Security Groupie] Using profile credentials for: \(settings.awsProfile)")
-            } else {
-                accessKeyId = settings.awsAccessKeyId
-                secretAccessKey = settings.awsSecretAccessKey
-                print("[Security Groupie] Using access key credentials")
-            }
-
-            let credentials = AWSCredentials(
-                accessKeyId: accessKeyId,
-                secretAccessKey: secretAccessKey,
-                region: settings.awsRegion
-            )
-
-            // Update the security group
-            print("[Security Groupie] Calling EC2 API - securityGroupId: \(settings.securityGroupId), region: \(settings.awsRegion), port: \(settings.port), description: \(settings.deviceNickname)")
-            let result = try await EC2Service.shared.updateSecurityGroupRule(
-                securityGroupId: settings.securityGroupId,
-                region: settings.awsRegion,
-                ipAddress: ip,
-                port: settings.port,
-                description: settings.deviceNickname,
-                credentials: credentials
-            )
+            // IP changed, check AWS
+            let result = try await updateSecurityGroup(ip: ip, settings: settings)
 
             settings.lastKnownIP = ip
             lastUpdated = Date()
             status = .success
             print("[Security Groupie] Result: \(result)")
 
-            // Send notification based on result
+            // Only notify on actual changes
             switch result {
             case .created:
                 await sendNotification(
@@ -182,7 +154,69 @@ final class AppState {
                     title: "Security Group Rule Updated",
                     body: "IP address updated to \(ip)"
                 )
-            case .alreadyExists:
+            case .noChangeNeeded, .alreadyExistsElsewhere:
+                // No notification for network changes when already configured
+                break
+            }
+        } catch {
+            print("[Security Groupie] Error: \(error)")
+            status = .error(error.localizedDescription)
+        }
+    }
+
+    /// Called for manual refresh (menu button, settings open, app launch).
+    /// Always checks AWS and always notifies with result.
+    func handleManualRefresh() async {
+        guard !isCheckInProgress else {
+            print("[Security Groupie] Check already in progress, skipping...")
+            return
+        }
+
+        isCheckInProgress = true
+        defer { isCheckInProgress = false }
+
+        status = .checking
+        print("[Security Groupie] Manual refresh, checking IP and AWS...")
+
+        do {
+            let ip = try await IPService.shared.fetchCurrentIP()
+            currentIP = ip
+            print("[Security Groupie] Current IP: \(ip)")
+
+            let settings = AppSettings.shared
+
+            guard settings.isConfigured else {
+                print("[Security Groupie] Not configured")
+                status = .error("Not configured")
+                return
+            }
+
+            // Always check AWS for manual refresh
+            let result = try await updateSecurityGroup(ip: ip, settings: settings)
+
+            settings.lastKnownIP = ip
+            lastUpdated = Date()
+            status = .success
+            print("[Security Groupie] Result: \(result)")
+
+            // Always notify for manual refresh
+            switch result {
+            case .created:
+                await sendNotification(
+                    title: "Security Group Rule Created",
+                    body: "IP address set to \(ip)"
+                )
+            case .updated:
+                await sendNotification(
+                    title: "Security Group Rule Updated",
+                    body: "IP address updated to \(ip)"
+                )
+            case .noChangeNeeded:
+                await sendNotification(
+                    title: "Already Configured",
+                    body: "Security group rule is already set to \(ip)"
+                )
+            case .alreadyExistsElsewhere:
                 await sendNotification(
                     title: "IP Already Allowed",
                     body: "There is already another security group rule for your IP address. Skipping."
@@ -192,6 +226,46 @@ final class AppState {
             print("[Security Groupie] Error: \(error)")
             status = .error(error.localizedDescription)
         }
+    }
+
+    /// Core logic to update the security group rule
+    private func updateSecurityGroup(ip: String, settings: AppSettings) async throws -> UpdateResult {
+        status = .updating
+        print("[Security Groupie] Updating security group...")
+
+        // Build credentials
+        let accessKeyId: String
+        let secretAccessKey: String
+
+        if settings.authMethod == .profile {
+            guard let profileCreds = AWSConfigService.shared.credentials(for: settings.awsProfile) else {
+                print("[Security Groupie] Profile credentials not found for profile: \(settings.awsProfile)")
+                throw SecurityGroupError.notConfigured
+            }
+            accessKeyId = profileCreds.accessKeyId
+            secretAccessKey = profileCreds.secretAccessKey
+            print("[Security Groupie] Using profile credentials for: \(settings.awsProfile)")
+        } else {
+            accessKeyId = settings.awsAccessKeyId
+            secretAccessKey = settings.awsSecretAccessKey
+            print("[Security Groupie] Using access key credentials")
+        }
+
+        let credentials = AWSCredentials(
+            accessKeyId: accessKeyId,
+            secretAccessKey: secretAccessKey,
+            region: settings.awsRegion
+        )
+
+        print("[Security Groupie] Calling EC2 API - securityGroupId: \(settings.securityGroupId), region: \(settings.awsRegion), port: \(settings.port), description: \(settings.deviceNickname)")
+        return try await EC2Service.shared.updateSecurityGroupRule(
+            securityGroupId: settings.securityGroupId,
+            region: settings.awsRegion,
+            ipAddress: ip,
+            port: settings.port,
+            description: settings.deviceNickname,
+            credentials: credentials
+        )
     }
 
     private func sendNotification(title: String, body: String) async {

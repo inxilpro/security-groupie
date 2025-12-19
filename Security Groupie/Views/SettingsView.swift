@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import ServiceManagement
 
 @Observable
 class AWSConnectionState {
@@ -111,12 +112,31 @@ class AWSConnectionState {
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     private var settings = AppSettings.shared
     private var awsConfig = AWSConfigService.shared
     private var connectionState = AWSConnectionState.shared
 
     var body: some View {
         Form {
+            // General Section
+            Section("General") {
+                Toggle("Launch at Login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            print("Failed to \(newValue ? "enable" : "disable") launch at login: \(error)")
+                            // Revert the toggle if it failed
+                            launchAtLogin = !newValue
+                        }
+                    }
+            }
+
             // AWS Connection Section
             Section("AWS Connection") {
                 if connectionState.regions.isEmpty {
@@ -260,6 +280,20 @@ struct SettingsView: View {
                 ))
                 .textFieldStyle(.roundedBorder)
                 .help("Used to identify this device's rule in the security group")
+
+                if let error = settings.deviceNameValidationError(settings.deviceNickname) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(error)
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                } else {
+                    Text("Allowed: letters, numbers, spaces, and ._-:/()#,@[]+=;{}!$*")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
             }
         }
         .formStyle(.grouped)
@@ -284,7 +318,7 @@ struct SettingsView: View {
             }
             // Refresh IP immediately when settings opens
             Task {
-                await AppState.shared.checkAndUpdateIP(force: true)
+                await AppState.shared.handleManualRefresh()
             }
         }
         .onDisappear {
