@@ -17,34 +17,6 @@ class AWSConnectionState {
 
     private init() {}
 
-    private func makeCredentials(forRegion region: String? = nil) -> AWSCredentials? {
-        let settings = AppSettings.shared
-        let awsConfig = AWSConfigService.shared
-
-        let accessKeyId: String
-        let secretAccessKey: String
-
-        if settings.authMethod == .profile {
-            guard let profileCreds = awsConfig.credentials(for: settings.awsProfile) else {
-                return nil
-            }
-            accessKeyId = profileCreds.accessKeyId
-            secretAccessKey = profileCreds.secretAccessKey
-        } else {
-            guard !settings.awsAccessKeyId.isEmpty && !settings.awsSecretAccessKey.isEmpty else {
-                return nil
-            }
-            accessKeyId = settings.awsAccessKeyId
-            secretAccessKey = settings.awsSecretAccessKey
-        }
-
-        return AWSCredentials(
-            accessKeyId: accessKeyId,
-            secretAccessKey: secretAccessKey,
-            region: region ?? settings.awsRegion
-        )
-    }
-
     func fetchAll() async {
         let settings = AppSettings.shared
 
@@ -58,12 +30,9 @@ class AWSConnectionState {
         isLoading = true
         error = nil
 
-        guard let credentials = makeCredentials() else {
-            isLoading = false
-            return
-        }
-
         do {
+            let credentials = try await AuthService.shared.credentials(forRegion: settings.awsRegion)
+
             // Fetch regions and security groups in parallel
             async let regionsTask = EC2Service.shared.fetchRegions(credentials: credentials)
             async let groupsTask = EC2Service.shared.fetchSecurityGroups(credentials: credentials)
@@ -92,12 +61,8 @@ class AWSConnectionState {
         isLoading = true
         error = nil
 
-        guard let credentials = makeCredentials() else {
-            isLoading = false
-            return
-        }
-
         do {
+            let credentials = try await AuthService.shared.credentials(forRegion: settings.awsRegion)
             let groups = try await EC2Service.shared.fetchSecurityGroups(credentials: credentials)
             securityGroups = groups
             error = nil
@@ -114,7 +79,7 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     private var settings = AppSettings.shared
-    private var awsConfig = AWSConfigService.shared
+    private var auth = AuthService.shared
     private var connectionState = AWSConnectionState.shared
 
     var body: some View {
@@ -164,52 +129,23 @@ struct SettingsView: View {
                     }
                 }
 
-                if awsConfig.hasConfigFile {
-                    Picker("Authentication", selection: Binding(
-                        get: { settings.authMethod },
-                        set: { settings.authMethod = $0 }
-                    )) {
-                        ForEach(AWSAuthMethod.allCases, id: \.self) { method in
-                            Text(method.displayName).tag(method)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: settings.authMethod) {
-                        triggerFullFetch()
+                Picker("Authentication", selection: Binding(
+                    get: { settings.authMethod },
+                    set: { settings.authMethod = $0 }
+                )) {
+                    ForEach(AWSAuthMethod.allCases, id: \.self) { method in
+                        Text(method.displayName).tag(method)
                     }
                 }
+                .pickerStyle(.segmented)
+                .onChange(of: settings.authMethod) {
+                    triggerFullFetch()
+                }
 
-                if awsConfig.hasConfigFile && settings.authMethod == .profile {
-                    Picker("Profile", selection: Binding(
-                        get: { settings.awsProfile },
-                        set: { settings.awsProfile = $0 }
-                    )) {
-                        ForEach(awsConfig.profiles, id: \.self) { profile in
-                            Text(profile).tag(profile)
-                        }
-                    }
-                    .help("AWS profile from ~/.aws/credentials")
-                    .onChange(of: settings.awsProfile) {
-                        triggerFullFetch()
-                    }
+                if settings.authMethod == .sso {
+                    ssoFields
                 } else {
-                    TextField("Access Key ID", text: Binding(
-                        get: { settings.awsAccessKeyId },
-                        set: { settings.awsAccessKeyId = $0 }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: settings.awsAccessKeyId) {
-                        triggerFullFetch()
-                    }
-
-                    SecureField("Secret Access Key", text: Binding(
-                        get: { settings.awsSecretAccessKey },
-                        set: { settings.awsSecretAccessKey = $0 }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: settings.awsSecretAccessKey) {
-                        triggerFullFetch()
-                    }
+                    accessKeyFields
                 }
 
                 // Connection status
@@ -308,9 +244,14 @@ struct SettingsView: View {
                 NSApp.applicationIconImage = appIcon
             }
 
-            // If no config file exists, force access key method
-            if !awsConfig.hasConfigFile {
-                settings.authMethod = .accessKey
+            // Repopulate the account/role pickers when reopening settings in a signed-in session
+            if case .signedIn = auth.ssoState, auth.accounts.isEmpty {
+                Task {
+                    try? await auth.loadAccounts()
+                    if !settings.ssoAccountId.isEmpty {
+                        try? await auth.loadRoles(accountId: settings.ssoAccountId)
+                    }
+                }
             }
             // Fetch regions and security groups on appear if we have credentials
             if settings.hasValidAuth {
@@ -323,6 +264,146 @@ struct SettingsView: View {
         }
         .onDisappear {
             NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
+    @ViewBuilder
+    private var ssoFields: some View {
+        TextField("Start URL", text: Binding(
+            get: { settings.ssoStartURL },
+            set: { settings.ssoStartURL = $0 }
+        ))
+        .textFieldStyle(.roundedBorder)
+        .help("e.g., https://my-org.awsapps.com/start")
+        .onChange(of: settings.ssoStartURL) {
+            signOutIfSignedIn()
+        }
+
+        TextField("SSO Region", text: Binding(
+            get: { settings.ssoRegion },
+            set: { settings.ssoRegion = $0 }
+        ))
+        .textFieldStyle(.roundedBorder)
+        .help("Region where IAM Identity Center is deployed, e.g., us-east-1")
+        .onChange(of: settings.ssoRegion) {
+            signOutIfSignedIn()
+        }
+
+        switch auth.ssoState {
+        case .signedOut:
+            HStack {
+                Text("Not signed in")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Sign In") {
+                    startSignIn()
+                }
+                .disabled(settings.ssoStartURL.isEmpty || settings.ssoRegion.isEmpty)
+            }
+
+        case .authorizing(let userCode, let verificationURL, _):
+            HStack {
+                ProgressView()
+                    .scaleEffect(0.5)
+                Text("Confirm code: \(userCode)")
+                    .font(.body.monospaced())
+                Spacer()
+                Button("Open Browser") {
+                    NSWorkspace.shared.open(verificationURL)
+                }
+                Button("Cancel") {
+                    auth.cancelSignIn()
+                }
+            }
+
+        case .signedIn:
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Signed in")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Sign Out") {
+                    Task {
+                        await auth.signOut()
+                    }
+                }
+            }
+
+            Picker("Account", selection: Binding(
+                get: { settings.ssoAccountId },
+                set: { settings.ssoAccountId = $0 }
+            )) {
+                Text("Select an account...").tag("")
+                ForEach(auth.accounts) { account in
+                    Text("\(account.name) (\(account.id))").tag(account.id)
+                }
+            }
+            .help("AWS account to manage security groups in")
+            .onChange(of: settings.ssoAccountId) { _, newValue in
+                settings.ssoRoleName = ""
+                guard !newValue.isEmpty else { return }
+                Task {
+                    try? await auth.loadRoles(accountId: newValue)
+                }
+            }
+
+            if !settings.ssoAccountId.isEmpty {
+                Picker("Role", selection: Binding(
+                    get: { settings.ssoRoleName },
+                    set: { settings.ssoRoleName = $0 }
+                )) {
+                    Text("Select a role...").tag("")
+                    ForEach(auth.roles, id: \.self) { role in
+                        Text(role).tag(role)
+                    }
+                }
+                .help("Permission set role to assume")
+                .onChange(of: settings.ssoRoleName) {
+                    triggerFullFetch()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var accessKeyFields: some View {
+        TextField("Access Key ID", text: Binding(
+            get: { settings.awsAccessKeyId },
+            set: { settings.awsAccessKeyId = $0 }
+        ))
+        .textFieldStyle(.roundedBorder)
+        .onChange(of: settings.awsAccessKeyId) {
+            triggerFullFetch()
+        }
+
+        SecureField("Secret Access Key", text: Binding(
+            get: { auth.accessKeySecret },
+            set: { auth.accessKeySecret = $0 }
+        ))
+        .textFieldStyle(.roundedBorder)
+        .onChange(of: auth.accessKeySecret) {
+            triggerFullFetch()
+        }
+    }
+
+    private func startSignIn() {
+        connectionState.error = nil
+        Task {
+            do {
+                try await auth.signIn()
+                triggerFullFetch()
+            } catch {
+                connectionState.error = error.localizedDescription
+            }
+        }
+    }
+
+    private func signOutIfSignedIn() {
+        // A registration/token minted for a different Identity Center instance is useless
+        if case .signedOut = auth.ssoState { return }
+        Task {
+            await auth.signOut()
         }
     }
 

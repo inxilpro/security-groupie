@@ -233,29 +233,7 @@ final class AppState {
         status = .updating
         print("[Security Groupie] Updating security group...")
 
-        // Build credentials
-        let accessKeyId: String
-        let secretAccessKey: String
-
-        if settings.authMethod == .profile {
-            guard let profileCreds = AWSConfigService.shared.credentials(for: settings.awsProfile) else {
-                print("[Security Groupie] Profile credentials not found for profile: \(settings.awsProfile)")
-                throw SecurityGroupError.notConfigured
-            }
-            accessKeyId = profileCreds.accessKeyId
-            secretAccessKey = profileCreds.secretAccessKey
-            print("[Security Groupie] Using profile credentials for: \(settings.awsProfile)")
-        } else {
-            accessKeyId = settings.awsAccessKeyId
-            secretAccessKey = settings.awsSecretAccessKey
-            print("[Security Groupie] Using access key credentials")
-        }
-
-        let credentials = AWSCredentials(
-            accessKeyId: accessKeyId,
-            secretAccessKey: secretAccessKey,
-            region: settings.awsRegion
-        )
+        let credentials = try await AuthService.shared.credentials(forRegion: settings.awsRegion)
 
         print("[Security Groupie] Calling EC2 API - securityGroupId: \(settings.securityGroupId), region: \(settings.awsRegion), port: \(settings.port), description: \(settings.deviceNickname)")
         return try await EC2Service.shared.updateSecurityGroupRule(

@@ -76,6 +76,7 @@ actor EC2Service {
         let bootstrapCredentials = AWSCredentials(
             accessKeyId: credentials.accessKeyId,
             secretAccessKey: credentials.secretAccessKey,
+            sessionToken: credentials.sessionToken,
             region: "us-east-1"
         )
         let client = try await createEC2Client(credentials: bootstrapCredentials)
@@ -178,7 +179,8 @@ actor EC2Service {
     private func createEC2Client(credentials: AWSCredentials) async throws -> EC2Client {
         let identity = AWSCredentialIdentity(
             accessKey: credentials.accessKeyId,
-            secret: credentials.secretAccessKey
+            secret: credentials.secretAccessKey,
+            sessionToken: credentials.sessionToken
         )
         let resolver = try StaticAWSCredentialIdentityResolver(identity)
         let config = try await EC2Client.EC2ClientConfiguration(
@@ -279,6 +281,7 @@ actor EC2Service {
 struct AWSCredentials {
     let accessKeyId: String
     let secretAccessKey: String
+    let sessionToken: String?
     let region: String
 }
 

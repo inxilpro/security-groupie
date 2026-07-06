@@ -18,7 +18,7 @@ A macOS menubar application that automatically updates AWS security group rules 
 3. **Settings Panel**:
    - AWS Security Group ID (e.g., `sg-xxxxxxxx`)
    - AWS Region (default: `us-east-1`)
-   - Either a) AWS Profile name (for credentials), or b) AWS access key and secret
+   - Either a) IAM Identity Center SSO (start URL + SSO region, then account/role pickers), or b) AWS access key and secret as a backup
    - Device nickname/description (defaults to hostname)
    - Port number (default: 22)
 
@@ -33,7 +33,7 @@ A macOS menubar application that automatically updates AWS security group rules 
 - Menubar icon with dropdown menu
 - Settings window (SwiftUI)
 - Background IP monitoring (listen for network changes)
-- Secure credential handling via AWS profiles (~/.aws/credentials)
+- Secure credential handling via IAM Identity Center (native OIDC device flow; tokens in Keychain, no ~/.aws dependency)
 
 ## Future Considerations
 

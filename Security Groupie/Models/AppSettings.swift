@@ -7,12 +7,12 @@ import Foundation
 import SwiftUI
 
 enum AWSAuthMethod: String, Codable, CaseIterable {
-    case profile = "profile"
+    case sso = "sso"
     case accessKey = "accessKey"
 
     var displayName: String {
         switch self {
-        case .profile: return "AWS Profile"
+        case .sso: return "IAM Identity Center"
         case .accessKey: return "Access Key"
         }
     }
@@ -22,16 +22,18 @@ enum AWSAuthMethod: String, Codable, CaseIterable {
 final class AppSettings {
     static let shared = AppSettings()
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
 
     // Keys
     private enum Keys {
         static let securityGroupId = "securityGroupId"
         static let awsRegion = "awsRegion"
         static let authMethod = "authMethod"
-        static let awsProfile = "awsProfile"
         static let awsAccessKeyId = "awsAccessKeyId"
-        static let awsSecretAccessKey = "awsSecretAccessKey"
+        static let ssoStartURL = "ssoStartURL"
+        static let ssoRegion = "ssoRegion"
+        static let ssoAccountId = "ssoAccountId"
+        static let ssoRoleName = "ssoRoleName"
         static let deviceNickname = "deviceNickname"
         static let port = "port"
         static let lastKnownIP = "lastKnownIP"
@@ -49,16 +51,24 @@ final class AppSettings {
         didSet { defaults.set(authMethod.rawValue, forKey: Keys.authMethod) }
     }
 
-    var awsProfile: String {
-        didSet { defaults.set(awsProfile, forKey: Keys.awsProfile) }
-    }
-
     var awsAccessKeyId: String {
         didSet { defaults.set(awsAccessKeyId, forKey: Keys.awsAccessKeyId) }
     }
 
-    var awsSecretAccessKey: String {
-        didSet { defaults.set(awsSecretAccessKey, forKey: Keys.awsSecretAccessKey) }
+    var ssoStartURL: String {
+        didSet { defaults.set(ssoStartURL, forKey: Keys.ssoStartURL) }
+    }
+
+    var ssoRegion: String {
+        didSet { defaults.set(ssoRegion, forKey: Keys.ssoRegion) }
+    }
+
+    var ssoAccountId: String {
+        didSet { defaults.set(ssoAccountId, forKey: Keys.ssoAccountId) }
+    }
+
+    var ssoRoleName: String {
+        didSet { defaults.set(ssoRoleName, forKey: Keys.ssoRoleName) }
     }
 
     var deviceNickname: String {
@@ -77,12 +87,15 @@ final class AppSettings {
         !securityGroupId.isEmpty && hasValidAuth && isValidDeviceName(deviceNickname)
     }
 
+    // A static configuration check only — an expired SSO session still passes here
+    // and surfaces as AuthError at call time
     var hasValidAuth: Bool {
         switch authMethod {
-        case .profile:
-            return !awsProfile.isEmpty
+        case .sso:
+            return !ssoStartURL.isEmpty && !ssoRegion.isEmpty
+                && !ssoAccountId.isEmpty && !ssoRoleName.isEmpty
         case .accessKey:
-            return !awsAccessKeyId.isEmpty && !awsSecretAccessKey.isEmpty
+            return !awsAccessKeyId.isEmpty && AuthService.shared.hasAccessKeySecret
         }
     }
 
@@ -131,16 +144,38 @@ final class AppSettings {
         return String(sanitized.prefix(maxDeviceNameLength))
     }
 
-    private init() {
+    private convenience init() {
+        self.init(defaults: .standard)
+    }
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
         self.securityGroupId = defaults.string(forKey: Keys.securityGroupId) ?? ""
         self.awsRegion = defaults.string(forKey: Keys.awsRegion) ?? "us-east-1"
-        self.authMethod = AWSAuthMethod(rawValue: defaults.string(forKey: Keys.authMethod) ?? "") ?? .profile
-        self.awsProfile = defaults.string(forKey: Keys.awsProfile) ?? "default"
+        self.authMethod = Self.migratedAuthMethod(from: defaults)
         self.awsAccessKeyId = defaults.string(forKey: Keys.awsAccessKeyId) ?? ""
-        self.awsSecretAccessKey = defaults.string(forKey: Keys.awsSecretAccessKey) ?? ""
+        self.ssoStartURL = defaults.string(forKey: Keys.ssoStartURL) ?? ""
+        self.ssoRegion = defaults.string(forKey: Keys.ssoRegion) ?? "us-east-1"
+        self.ssoAccountId = defaults.string(forKey: Keys.ssoAccountId) ?? ""
+        self.ssoRoleName = defaults.string(forKey: Keys.ssoRoleName) ?? ""
         self.deviceNickname = defaults.string(forKey: Keys.deviceNickname) ?? Self.defaultDeviceName()
         self.port = defaults.integer(forKey: Keys.port) == 0 ? 22 : defaults.integer(forKey: Keys.port)
         self.lastKnownIP = defaults.string(forKey: Keys.lastKnownIP)
+
+        defaults.removeObject(forKey: "awsProfile")
+    }
+
+    // The removed .profile method read ~/.aws/credentials; users who had it selected
+    // fall back to access keys when they have any, otherwise SSO onboarding
+    private static func migratedAuthMethod(from defaults: UserDefaults) -> AWSAuthMethod {
+        let stored = defaults.string(forKey: Keys.authMethod) ?? ""
+        if stored == "profile" {
+            let hasKeys = !(defaults.string(forKey: Keys.awsAccessKeyId) ?? "").isEmpty
+            let migrated: AWSAuthMethod = hasKeys ? .accessKey : .sso
+            defaults.set(migrated.rawValue, forKey: Keys.authMethod)
+            return migrated
+        }
+        return AWSAuthMethod(rawValue: stored) ?? .sso
     }
 
     private static func defaultDeviceName() -> String {

@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		6BC3FEE82EEB763E0070E6E0 /* AWSEC2 in Frameworks */ = {isa = PBXBuildFile; productRef = 6BC3FF012EEB80000070E6E0 /* AWSEC2 */; };
 		6BC3FF0E2EECC2870070E6E0 /* SecurityGroupieIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 6BC3FF0D2EECC2870070E6E0 /* SecurityGroupieIcon.icon */; };
+		6BC3FF122EEB80000070E6E0 /* AWSSSO in Frameworks */ = {isa = PBXBuildFile; productRef = 6BC3FF102EEB80000070E6E0 /* AWSSSO */; };
+		6BC3FF132EEB80000070E6E0 /* AWSSSOOIDC in Frameworks */ = {isa = PBXBuildFile; productRef = 6BC3FF112EEB80000070E6E0 /* AWSSSOOIDC */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +61,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				6BC3FEE82EEB763E0070E6E0 /* AWSEC2 in Frameworks */,
+				6BC3FF122EEB80000070E6E0 /* AWSSSO in Frameworks */,
+				6BC3FF132EEB80000070E6E0 /* AWSSSOOIDC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +125,8 @@
 			name = "Security Groupie";
 			packageProductDependencies = (
 				6BC3FF012EEB80000070E6E0 /* AWSEC2 */,
+				6BC3FF102EEB80000070E6E0 /* AWSSSO */,
+				6BC3FF112EEB80000070E6E0 /* AWSSSOOIDC */,
 			);
 			productName = "Security Groupie";
 			productReference = 6BC3FE182EEB692E0070E6E0 /* Security Groupie.app */;
@@ -613,6 +619,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */;
 			productName = AWSEC2;
+		};
+		6BC3FF102EEB80000070E6E0 /* AWSSSO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */;
+			productName = AWSSSO;
+		};
+		6BC3FF112EEB80000070E6E0 /* AWSSSOOIDC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */;
+			productName = AWSSSOOIDC;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

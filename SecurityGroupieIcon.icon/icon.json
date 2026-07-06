@@ -20,50 +20,86 @@
       "blur-material" : null,
       "layers" : [
         {
-          "blend-mode-specializations" : [
-            {
-              "value" : "normal"
-            },
-            {
-              "appearance" : "dark",
-              "value" : "normal"
-            }
-          ],
-          "fill" : "none",
-          "glass" : true,
-          "image-name" : "stanchion.png",
-          "name" : "stanchion",
+          "glass" : false,
+          "image-name" : "Image 7.png",
+          "name" : "Image 7",
           "position" : {
-            "scale" : 2,
+            "scale" : 1.5,
             "translation-in-points" : [
-              314.24722426470544,
-              437.8823529411767
+              0,
+              110.6796875
             ]
           }
         },
         {
-          "blend-mode" : "multiply",
           "glass" : false,
-          "image-name" : "groupie.png",
-          "name" : "groupie",
-          "opacity-specializations" : [
-            {
-              "value" : 0.9
-            },
-            {
-              "appearance" : "dark",
-              "value" : 0.7
-            },
-            {
-              "appearance" : "tinted",
-              "value" : 0.8
-            }
-          ],
+          "image-name" : "Image 6.png",
+          "name" : "Image 6",
+          "position" : {
+            "scale" : 1.5,
+            "translation-in-points" : [
+              0,
+              76.6796875
+            ]
+          }
+        },
+        {
+          "hidden" : true,
+          "image-name" : "Image 5.png",
+          "name" : "Image 5",
+          "position" : {
+            "scale" : 1.2,
+            "translation-in-points" : [
+              0,
+              56.59999999999991
+            ]
+          }
+        },
+        {
+          "hidden" : true,
+          "image-name" : "Image 3.png",
+          "name" : "Image 3",
           "position" : {
             "scale" : 2,
             "translation-in-points" : [
-              147.13988970588196,
-              389.7955147058818
+              0,
+              -10.890625
+            ]
+          }
+        },
+        {
+          "hidden" : true,
+          "image-name" : "Image 4.png",
+          "name" : "Image 4",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              16,
+              -103
+            ]
+          }
+        },
+        {
+          "hidden" : true,
+          "image-name" : "Image 2.png",
+          "name" : "Image 2",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              377.8359375,
+              45.1328125
+            ]
+          }
+        },
+        {
+          "hidden" : true,
+          "image-name" : "Image.png",
+          "name" : "Image",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              -383.6484375,
+              45.1328125
             ]
           }
         }
