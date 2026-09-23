@@ -289,3 +289,26 @@ struct AuthServiceTests {
         #expect(try store.codable(SSOToken.self, forKey: "sso.token") == nil)
     }
 }
+
+@MainActor
+struct RequiresSignInTests {
+    @Test func expiredSSOSessionRequiresSignIn() {
+        #expect(AppState.requiresSignIn(AuthError.sessionExpired, authMethod: .sso))
+    }
+
+    @Test func missingSSOSessionRequiresSignIn() {
+        #expect(AppState.requiresSignIn(AuthError.notSignedIn, authMethod: .sso))
+    }
+
+    @Test func configurationErrorDoesNotRequireSignIn() {
+        #expect(!AppState.requiresSignIn(AuthError.missingConfiguration, authMethod: .sso))
+    }
+
+    @Test func accessKeyAuthNeverRequiresSignIn() {
+        #expect(!AppState.requiresSignIn(AuthError.sessionExpired, authMethod: .accessKey))
+    }
+
+    @Test func nonAuthErrorDoesNotRequireSignIn() {
+        #expect(!AppState.requiresSignIn(IPServiceError.invalidResponse, authMethod: .sso))
+    }
+}

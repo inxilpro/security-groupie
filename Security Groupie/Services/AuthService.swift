@@ -155,11 +155,18 @@ final class AuthService {
 
             let token = try await validAccessToken()
             let client = try SSOClient(region: settings.ssoRegion)
-            let output = try await client.getRoleCredentials(input: GetRoleCredentialsInput(
-                accessToken: token.accessToken,
-                accountId: settings.ssoAccountId,
-                roleName: settings.ssoRoleName
-            ))
+            let output: GetRoleCredentialsOutput
+            do {
+                output = try await client.getRoleCredentials(input: GetRoleCredentialsInput(
+                    accessToken: token.accessToken,
+                    accountId: settings.ssoAccountId,
+                    roleName: settings.ssoRoleName
+                ))
+            } catch is AWSSSO.UnauthorizedException {
+                // The token looked valid locally but Identity Center revoked it (e.g. portal sign-out)
+                clearSession()
+                throw AuthError.sessionExpired
+            }
 
             guard let role = output.roleCredentials,
                   let accessKeyId = role.accessKeyId,

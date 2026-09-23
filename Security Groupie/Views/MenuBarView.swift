@@ -26,6 +26,14 @@ struct MenuBarView: View {
 
         Divider()
 
+        if appState.needsSignIn {
+            Button("Log In to AWS…") {
+                Task {
+                    await appState.beginSignIn()
+                }
+            }
+        }
+
         Button("Refresh Now") {
             Task {
                 await appState.handleManualRefresh()

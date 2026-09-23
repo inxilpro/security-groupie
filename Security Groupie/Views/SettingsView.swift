@@ -259,7 +259,7 @@ struct SettingsView: View {
             }
             // Refresh IP immediately when settings opens
             Task {
-                await AppState.shared.handleManualRefresh()
+                await AppState.shared.handleManualRefresh(promptForSignIn: false)
             }
         }
         .onDisappear {
@@ -391,7 +391,7 @@ struct SettingsView: View {
         connectionState.error = nil
         Task {
             do {
-                try await auth.signIn()
+                try await AppState.shared.signInAndUpdate()
                 triggerFullFetch()
             } catch {
                 connectionState.error = error.localizedDescription
