@@ -7,6 +7,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @Environment(AppState.self) private var appState
+    private var updater = UpdaterController.shared
 
     var body: some View {
         if let status = appState.statusText {
@@ -42,6 +43,11 @@ struct MenuBarView: View {
         .keyboardShortcut("r", modifiers: .command)
 
         Divider()
+
+        Button("Check for Updates…") {
+            updater.checkForUpdates()
+        }
+        .disabled(!updater.canCheckForUpdates)
 
         SettingsLink {
             Text("Settings…")

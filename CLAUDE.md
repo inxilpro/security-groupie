@@ -34,6 +34,7 @@ A macOS menubar application that automatically updates AWS security group rules 
 - Settings window (SwiftUI)
 - Background IP monitoring (listen for network changes)
 - Secure credential handling via IAM Identity Center (native OIDC device flow; tokens in Keychain, no ~/.aws dependency)
+- In-app updates via Sparkle (`Services/UpdaterController.swift`); it only starts in Release builds. Releases are cut by pushing a `vX.Y.Z` tag; `Documentation/RELEASING.md` covers the workflow, secrets, feed, and key
 
 ## Future Considerations
 

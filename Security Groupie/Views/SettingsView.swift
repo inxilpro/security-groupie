@@ -81,6 +81,7 @@ struct SettingsView: View {
     private var settings = AppSettings.shared
     private var auth = AuthService.shared
     private var connectionState = AWSConnectionState.shared
+    private var updater = UpdaterController.shared
 
     var body: some View {
         Form {
@@ -229,6 +230,24 @@ struct SettingsView: View {
                     Text("Allowed: letters, numbers, spaces, and ._-:/()#,@[]+=;{}!$*")
                         .foregroundStyle(.secondary)
                         .font(.caption)
+                }
+            }
+
+            Section("Updates") {
+                Toggle("Check for updates automatically", isOn: Binding(
+                    get: { updater.automaticallyChecksForUpdates },
+                    set: { updater.automaticallyChecksForUpdates = $0 }
+                ))
+                .disabled(!UpdaterController.isEnabled)
+
+                HStack {
+                    Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Check for Updates Now") {
+                        updater.checkForUpdates()
+                    }
+                    .disabled(!updater.canCheckForUpdates)
                 }
             }
         }

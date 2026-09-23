@@ -11,6 +11,7 @@
 		6BC3FF0E2EECC2870070E6E0 /* SecurityGroupieIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 6BC3FF0D2EECC2870070E6E0 /* SecurityGroupieIcon.icon */; };
 		6BC3FF122EEB80000070E6E0 /* AWSSSO in Frameworks */ = {isa = PBXBuildFile; productRef = 6BC3FF102EEB80000070E6E0 /* AWSSSO */; };
 		6BC3FF132EEB80000070E6E0 /* AWSSSOOIDC in Frameworks */ = {isa = PBXBuildFile; productRef = 6BC3FF112EEB80000070E6E0 /* AWSSSOOIDC */; };
+		6BC3FF232EEB80000070E6E0 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 6BC3FF222EEB80000070E6E0 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,9 +38,22 @@
 		6BC3FF0D2EECC2870070E6E0 /* SecurityGroupieIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = SecurityGroupieIcon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6BC3FF202EEB80000070E6E0 /* Exceptions for "Security Groupie" folder in "Security Groupie" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6BC3FE172EEB692E0070E6E0 /* Security Groupie */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6BC3FE1A2EEB692E0070E6E0 /* Security Groupie */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6BC3FF202EEB80000070E6E0 /* Exceptions for "Security Groupie" folder in "Security Groupie" target */,
+			);
 			path = "Security Groupie";
 			sourceTree = "<group>";
 		};
@@ -63,6 +77,7 @@
 				6BC3FEE82EEB763E0070E6E0 /* AWSEC2 in Frameworks */,
 				6BC3FF122EEB80000070E6E0 /* AWSSSO in Frameworks */,
 				6BC3FF132EEB80000070E6E0 /* AWSSSOOIDC in Frameworks */,
+				6BC3FF232EEB80000070E6E0 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,6 +142,7 @@
 				6BC3FF012EEB80000070E6E0 /* AWSEC2 */,
 				6BC3FF102EEB80000070E6E0 /* AWSSSO */,
 				6BC3FF112EEB80000070E6E0 /* AWSSSOOIDC */,
+				6BC3FF222EEB80000070E6E0 /* Sparkle */,
 			);
 			productName = "Security Groupie";
 			productReference = 6BC3FE182EEB692E0070E6E0 /* Security Groupie.app */;
@@ -212,6 +228,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */,
+				6BC3FF212EEB80000070E6E0 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6BC3FE192EEB692E0070E6E0 /* Products */;
@@ -424,6 +441,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Security Groupie/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Security Groupie";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -461,6 +479,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Security Groupie/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Security Groupie";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -612,6 +631,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		6BC3FF212EEB80000070E6E0 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -629,6 +656,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 6BC3FF002EEB80000070E6E0 /* XCRemoteSwiftPackageReference "aws-sdk-swift" */;
 			productName = AWSSSOOIDC;
+		};
+		6BC3FF222EEB80000070E6E0 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BC3FF212EEB80000070E6E0 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
