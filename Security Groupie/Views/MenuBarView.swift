@@ -16,8 +16,11 @@ struct MenuBarView: View {
         }
 
         if let ip = appState.currentIP {
-            Text(ip)
-                .disabled(true)
+            Button(ip) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(ip, forType: .string)
+            }
+            .help("Copy IP address")
         }
 
         if let lastUpdated = appState.lastUpdated {
